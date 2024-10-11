@@ -77,6 +77,11 @@ impl SBPFVersion {
         self != &SBPFVersion::V1
     }
 
+    /// Restricts jump and call targets to function boundaries
+    pub fn stricter_controlflow(&self) -> bool {
+        self != &SBPFVersion::V1
+    }
+
     /// Move opcodes of memory instructions into ALU instruction classes
     pub fn move_memory_instruction_classes(&self) -> bool {
         self != &SBPFVersion::V1
