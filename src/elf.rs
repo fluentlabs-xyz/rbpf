@@ -370,7 +370,7 @@ impl<C: ContextObject> Executable<C> {
         })
     }
 
-    /// Fully loads an ELF, including validation and relocation
+    /// Fully loads an ELF
     pub fn load(bytes: &[u8], loader: Arc<BuiltinProgram<C>>) -> Result<Self, ElfError> {
         let e_flags = LittleEndian::read_u32(bytes.get(48..52).ok_or(ElfParserError::OutOfBounds)?);
         let config = loader.get_config();
@@ -391,10 +391,19 @@ impl<C: ContextObject> Executable<C> {
             return Err(ElfError::UnsupportedSBPFVersion);
         }
 
-        Self::load_with_parser(bytes, loader)
+        let mut executable = match sbpf_version {
+            SBPFVersion::V1 => Self::load_with_lenient_parser(bytes, loader)?,
+            _ => return Err(ElfError::UnsupportedSBPFVersion),
+        };
+        executable.sbpf_version = sbpf_version;
+        Ok(executable)
     }
 
-    fn load_with_parser(bytes: &[u8], loader: Arc<BuiltinProgram<C>>) -> Result<Self, ElfError> {
+    /// Loads an ELF with relocation
+    fn load_with_lenient_parser(
+        bytes: &[u8],
+        loader: Arc<BuiltinProgram<C>>,
+    ) -> Result<Self, ElfError> {
         // We always need one memory copy to take ownership and for relocations
         let aligned_memory = AlignedMemory::<{ HOST_ALIGN }>::from_slice(bytes);
         let (mut elf_bytes, elf) = if is_memory_aligned(bytes.as_ptr() as usize, HOST_ALIGN) {
@@ -409,11 +418,7 @@ impl<C: ContextObject> Executable<C> {
 
         let config = loader.get_config();
         let header = elf.file_header();
-        let sbpf_version = if header.e_flags == EF_SBPF_V2 {
-            SBPFVersion::V2
-        } else {
-            SBPFVersion::V1
-        };
+        let sbpf_version = SBPFVersion::V1;
 
         Self::validate(config, &elf, elf_bytes.as_slice())?;
 
@@ -536,11 +541,7 @@ impl<C: ContextObject> Executable<C> {
             return Err(ElfError::WrongType);
         }
 
-        let sbpf_version = if header.e_flags == EF_SBPF_V2 {
-            SBPFVersion::V2
-        } else {
-            SBPFVersion::V1
-        };
+        let sbpf_version = SBPFVersion::V1;
         if !config.enabled_sbpf_versions.contains(&sbpf_version) {
             return Err(ElfError::UnsupportedSBPFVersion);
         }
