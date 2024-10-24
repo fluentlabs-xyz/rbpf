@@ -1402,6 +1402,72 @@ mod test {
     }
 
     #[test]
+    fn test_strict_header() {
+        let elf_bytes =
+            std::fs::read("tests/elfs/strict_header.so").expect("failed to read elf file");
+        let loader = loader();
+
+        // Check that the unmodified file can be parsed
+        ElfExecutable::load(&elf_bytes, loader.clone()).unwrap();
+
+        // Check that an empty file fails
+        let err = ElfExecutable::load_with_strict_parser(&[], loader.clone()).unwrap_err();
+        assert_eq!(err, ElfParserError::OutOfBounds);
+
+        // Break the file header one byte at a time
+        let expected_results = std::iter::repeat(&Err(ElfParserError::InvalidFileHeader))
+            .take(40)
+            .chain(std::iter::repeat(&Ok(())).take(12))
+            .chain(std::iter::repeat(&Err(ElfParserError::InvalidFileHeader)).take(4))
+            .chain(std::iter::repeat(&Err(ElfParserError::InvalidProgramHeader)).take(1))
+            .chain(std::iter::repeat(&Err(ElfParserError::InvalidFileHeader)).take(3))
+            .chain(std::iter::repeat(&Ok(())).take(2))
+            .chain(std::iter::repeat(&Err(ElfParserError::InvalidFileHeader)).take(2));
+        for (offset, expected) in (0..std::mem::size_of::<Elf64Ehdr>()).zip(expected_results) {
+            let mut elf_bytes = elf_bytes.clone();
+            elf_bytes[offset] = 0xAF;
+            let result =
+                ElfExecutable::load_with_strict_parser(&elf_bytes, loader.clone()).map(|_| ());
+            assert_eq!(&result, expected);
+        }
+
+        // Break the program header table one byte at a time
+        let expected_results_readonly =
+            std::iter::repeat(&Err(ElfParserError::InvalidProgramHeader))
+                .take(48)
+                .chain(std::iter::repeat(&Ok(())).take(8))
+                .collect::<Vec<_>>();
+        let expected_results_writable =
+            std::iter::repeat(&Err(ElfParserError::InvalidProgramHeader))
+                .take(40)
+                .chain(std::iter::repeat(&Ok(())).take(4))
+                .chain(std::iter::repeat(&Err(ElfParserError::InvalidProgramHeader)).take(4))
+                .chain(std::iter::repeat(&Ok(())).take(8))
+                .collect::<Vec<_>>();
+        let expected_results = vec![
+            expected_results_readonly.iter(),
+            expected_results_readonly.iter(),
+            expected_results_writable.iter(),
+            expected_results_writable.iter(),
+            expected_results_readonly.iter(),
+        ];
+        for (header_index, expected_results) in expected_results.into_iter().enumerate() {
+            for (offset, expected) in (std::mem::size_of::<Elf64Ehdr>()
+                + std::mem::size_of::<Elf64Phdr>() * header_index
+                ..std::mem::size_of::<Elf64Ehdr>()
+                    + std::mem::size_of::<Elf64Phdr>() * (header_index + 1))
+                .zip(expected_results)
+            {
+                let mut elf_bytes = elf_bytes.clone();
+                elf_bytes[offset] = 0xAF;
+                let result =
+                    ElfExecutable::load_with_strict_parser(&elf_bytes, loader.clone()).map(|_| ());
+                assert_eq!(&&result, expected);
+            }
+        }
+    }
+
+    #[test]
     fn test_validate() {
         let elf_bytes = std::fs::read("tests/elfs/relative_call_sbpfv1.so").unwrap();
         let elf = Elf64::parse(&elf_bytes).unwrap();
