@@ -8,9 +8,9 @@
 
 use crate::error::EbpfError;
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(any(target_os = "windows", target_arch = "wasm32")))]
 extern crate libc;
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(any(target_os = "windows", target_arch = "wasm32")))]
 use libc::c_void;
 
 #[cfg(target_os = "windows")]
@@ -25,7 +25,7 @@ use winapi::{
     },
 };
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(any(target_os = "windows", target_arch = "wasm32")))]
 macro_rules! libc_error_guard {
     (succeeded?, mmap, $addr:expr, $($arg:expr),*) => {{
         *$addr = libc::mmap(*$addr, $($arg),*);
@@ -72,16 +72,16 @@ macro_rules! winapi_error_guard {
 }
 
 pub fn get_system_page_size() -> usize {
-    #[cfg(not(target_os = "windows"))]
-    unsafe {
-        libc::sysconf(libc::_SC_PAGESIZE) as usize
-    }
+    let size = 4096;
+    #[cfg(not(any(target_os = "windows", target_arch = "wasm32")))]
+    let size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
     #[cfg(target_os = "windows")]
-    unsafe {
+    let size = unsafe {
         let mut system_info: SYSTEM_INFO = std::mem::zeroed();
         GetSystemInfo(&mut system_info);
         system_info.dwPageSize as usize
-    }
+    };
+    size
 }
 
 pub fn round_to_page_size(value: usize, page_size: usize) -> usize {
@@ -94,8 +94,13 @@ pub fn round_to_page_size(value: usize, page_size: usize) -> usize {
 }
 
 pub unsafe fn allocate_pages(size_in_bytes: usize) -> Result<*mut u8, EbpfError> {
+    let mut raw: *mut u8 = core::ptr::null_mut();
+    #[cfg(any(
+        not(any(target_os = "windows", target_arch = "wasm32")),
+        target_os = "windows"
+    ))]
     let mut raw: *mut c_void = std::ptr::null_mut();
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(not(any(target_os = "windows", target_arch = "wasm32")))]
     libc_error_guard!(
         mmap,
         &mut raw,
@@ -117,7 +122,7 @@ pub unsafe fn allocate_pages(size_in_bytes: usize) -> Result<*mut u8, EbpfError>
 }
 
 pub unsafe fn free_pages(raw: *mut u8, size_in_bytes: usize) -> Result<(), EbpfError> {
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(not(any(target_os = "windows", target_arch = "wasm32")))]
     libc_error_guard!(munmap, raw as *mut _, size_in_bytes);
     #[cfg(target_os = "windows")]
     winapi_error_guard!(
@@ -134,7 +139,7 @@ pub unsafe fn protect_pages(
     size_in_bytes: usize,
     executable_flag: bool,
 ) -> Result<(), EbpfError> {
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(not(any(target_os = "windows", target_arch = "wasm32")))]
     {
         libc_error_guard!(
             mprotect,

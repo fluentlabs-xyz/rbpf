@@ -113,7 +113,7 @@ impl Default for Config {
 impl<C: ContextObject> Executable<C> {
     /// Creates an executable from an ELF file
     pub fn from_elf(elf_bytes: &[u8], loader: Arc<BuiltinProgram<C>>) -> Result<Self, EbpfError> {
-        let executable = Executable::load(elf_bytes, loader)?;
+        let executable = Executable::load(elf_bytes, loader).map_err(|e| EbpfError::ElfError(e))?;
         Ok(executable)
     }
     /// Creates an executable from machine code

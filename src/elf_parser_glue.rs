@@ -561,6 +561,6 @@ impl From<GoblinError> for ElfError {
 
 impl From<GoblinError> for EbpfError {
     fn from(error: GoblinError) -> Self {
-        ElfError::from(error).into()
+        EbpfError::ElfError(ElfError::from(error))
     }
 }
