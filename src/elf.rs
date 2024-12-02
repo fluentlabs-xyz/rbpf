@@ -29,82 +29,95 @@ use crate::{
 
 #[cfg(all(feature = "jit", not(target_os = "windows"), target_arch = "x86_64"))]
 use crate::jit::{JitCompiler, JitProgram};
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
+use alloc::{collections::BTreeMap, fmt::Debug, format, str, sync::Arc, vec};
 use byteorder::{ByteOrder, LittleEndian};
-use std::{collections::BTreeMap, fmt::Debug, mem, ops::Range, str, sync::Arc};
+use core::fmt::{Display, Formatter};
+use core::mem;
+use core::ops::Range;
 
 /// Error definitions
-#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+#[derive(Debug, /*thiserror::Error,*/ PartialEq, Eq)]
 pub enum ElfError {
     /// Failed to parse ELF file
-    #[error("Failed to parse ELF file: {0}")]
+    // #[error("Failed to parse ELF file: {0}")]
     FailedToParse(String),
     /// Entrypoint out of bounds
-    #[error("Entrypoint out of bounds")]
+    // #[error("Entrypoint out of bounds")]
     EntrypointOutOfBounds,
     /// Invaid entrypoint
-    #[error("Invaid entrypoint")]
+    // #[error("Invaid entrypoint")]
     InvalidEntrypoint,
     /// Failed to get section
-    #[error("Failed to get section {0}")]
+    // #[error("Failed to get section {0}")]
     FailedToGetSection(String),
     /// Unresolved symbol
-    #[error("Unresolved symbol ({0}) at instruction #{1:?} (ELF file offset {2:#x})")]
+    // #[error("Unresolved symbol ({0}) at instruction #{1:?} (ELF file offset {2:#x})")]
     UnresolvedSymbol(String, usize, usize),
     /// Section not found
-    #[error("Section not found: {0}")]
+    // #[error("Section not found: {0}")]
     SectionNotFound(String),
     /// Relative jump out of bounds
-    #[error("Relative jump out of bounds at instruction #{0}")]
+    // #[error("Relative jump out of bounds at instruction #{0}")]
     RelativeJumpOutOfBounds(usize),
     /// Symbol hash collision
-    #[error("Symbol hash collision {0:#x}")]
+    // #[error("Symbol hash collision {0:#x}")]
     SymbolHashCollision(u32),
     /// Incompatible ELF: wrong endianess
-    #[error("Incompatible ELF: wrong endianess")]
+    // #[error("Incompatible ELF: wrong endianess")]
     WrongEndianess,
     /// Incompatible ELF: wrong ABI
-    #[error("Incompatible ELF: wrong ABI")]
+    // #[error("Incompatible ELF: wrong ABI")]
     WrongAbi,
     /// Incompatible ELF: wrong mchine
-    #[error("Incompatible ELF: wrong machine")]
+    // #[error("Incompatible ELF: wrong machine")]
     WrongMachine,
     /// Incompatible ELF: wrong class
-    #[error("Incompatible ELF: wrong class")]
+    // #[error("Incompatible ELF: wrong class")]
     WrongClass,
     /// Not one text section
-    #[error("Multiple or no text sections, consider removing llc option: -function-sections")]
+    // #[error("Multiple or no text sections, consider removing llc option: -function-sections")]
     NotOneTextSection,
     /// Read-write data not supported
-    #[error("Found writable section ({0}) in ELF, read-write data not supported")]
+    // #[error("Found writable section ({0}) in ELF, read-write data not supported")]
     WritableSectionNotSupported(String),
     /// Relocation failed, no loadable section contains virtual address
-    #[error("Relocation failed, no loadable section contains virtual address {0:#x}")]
+    // #[error("Relocation failed, no loadable section contains virtual address {0:#x}")]
     AddressOutsideLoadableSection(u64),
     /// Relocation failed, invalid referenced virtual address
-    #[error("Relocation failed, invalid referenced virtual address {0:#x}")]
+    // #[error("Relocation failed, invalid referenced virtual address {0:#x}")]
     InvalidVirtualAddress(u64),
     /// Relocation failed, unknown type
-    #[error("Relocation failed, unknown type {0:?}")]
+    // #[error("Relocation failed, unknown type {0:?}")]
     UnknownRelocation(u32),
     /// Failed to read relocation info
-    #[error("Failed to read relocation info")]
+    // #[error("Failed to read relocation info")]
     FailedToReadRelocationInfo,
     /// Incompatible ELF: wrong type
-    #[error("Incompatible ELF: wrong type")]
+    // #[error("Incompatible ELF: wrong type")]
     WrongType,
     /// Unknown symbol
-    #[error("Unknown symbol with index {0}")]
+    // #[error("Unknown symbol with index {0}")]
     UnknownSymbol(usize),
     /// Offset or value is out of bounds
-    #[error("Offset or value is out of bounds")]
+    // #[error("Offset or value is out of bounds")]
     ValueOutOfBounds,
     /// Detected sbpf_version required by the executable which are not enabled
-    #[error("Detected sbpf_version required by the executable which are not enabled")]
+    // #[error("Detected sbpf_version required by the executable which are not enabled")]
     UnsupportedSBPFVersion,
     /// Invalid program header
-    #[error("Invalid ELF program header")]
+    // #[error("Invalid ELF program header")]
     InvalidProgramHeader,
 }
+
+impl Display for ElfError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
+
+impl core::error::Error for ElfError {}
 
 // For more information on the BPF instruction set:
 // https://github.com/iovisor/bpf-docs/blob/master/eBPF.md
@@ -398,7 +411,7 @@ impl<C: ContextObject> Executable<C> {
         let text_section_info = SectionInfo {
             name: if config.enable_symbol_and_section_labels {
                 elf.section_name(text_section.sh_name())
-                    .and_then(|name| std::str::from_utf8(name).ok())
+                    .and_then(|name| core::str::from_utf8(name).ok())
                     .unwrap_or(".text")
                     .to_string()
             } else {
@@ -1146,10 +1159,10 @@ impl<C: ContextObject> Executable<C> {
     #[allow(dead_code)]
     fn dump_data(name: &str, prog: &[u8]) {
         let mut eight_bytes: Vec<u8> = Vec::new();
-        println!("{name}");
+        // println!("{name}");
         for i in prog.iter() {
             if eight_bytes.len() >= 7 {
-                println!("{eight_bytes:02X?}");
+                // println!("{eight_bytes:02X?}");
                 eight_bytes.clear();
             } else {
                 eight_bytes.push(*i);
@@ -1185,13 +1198,13 @@ mod test {
             SECTION_NAME_LENGTH_MAXIMUM,
         },
         error::ProgramResult,
-        fuzz::fuzz,
+        // fuzz::fuzz,
         program::BuiltinFunction,
         syscalls,
         vm::TestContextObject,
     };
     use rand::{distributions::Uniform, Rng};
-    use std::{fs::File, io::Read};
+    // use std::{fs::File, io::Read};
     use test_utils::assert_error;
     type ElfExecutable = Executable<TestContextObject>;
 
@@ -1364,7 +1377,7 @@ mod test {
         assert_eq!(0, executable.get_entrypoint_instruction_offset());
     }
 
-    #[test]
+    /*#[test]
     #[ignore]
     fn test_fuzz_load() {
         let loader = loader();
@@ -1424,7 +1437,7 @@ mod test {
                 let _ = ElfExecutable::load(bytes, loader.clone());
             },
         );
-    }
+    }*/
 
     fn new_section(sh_addr: u64, sh_size: u64) -> Elf64Shdr {
         Elf64Shdr {

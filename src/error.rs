@@ -17,7 +17,10 @@
 //! <https://www.kernel.org/doc/Documentation/networking/filter.txt>, or for a shorter version of
 //! the list of the operation codes: <https://github.com/iovisor/bpf-docs/blob/master/eBPF.md>
 
-use std::fmt::{Display, Formatter};
+use alloc::boxed::Box;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
+use core::fmt::{write, Display, Formatter};
 use {
     crate::{elf::ElfError, memory_region::AccessType, verifier::VerifierError},
     core::error::Error,
@@ -90,8 +93,8 @@ pub enum EbpfError {
 }
 
 impl Display for EbpfError {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        write!(f, "EbpfError: {}", &self.to_string())
     }
 }
 
@@ -107,7 +110,7 @@ pub enum StableResult<T, E> {
     Err(E),
 }
 
-impl<T: std::fmt::Debug, E: std::fmt::Debug> StableResult<T, E> {
+impl<T: core::fmt::Debug, E: core::fmt::Debug> StableResult<T, E> {
     /// `true` if `Ok`
     pub fn is_ok(&self) -> bool {
         match self {
@@ -189,6 +192,26 @@ impl<T, E> From<Result<T, E>> for StableResult<T, E> {
 
 /// Return value of programs and syscalls
 pub type ProgramResult = StableResult<u64, EbpfError>;
+
+#[derive(Debug)]
+pub struct StringError {
+    description: String,
+}
+
+impl Display for StringError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
+
+impl core::error::Error for StringError {}
+impl StringError {
+    pub fn new(description: impl Into<String>) -> Self {
+        Self {
+            description: description.into(),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

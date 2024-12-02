@@ -1,6 +1,13 @@
 //! Aligned memory
 
-use std::{mem, ptr};
+use crate::error::StringError;
+use alloc::boxed::Box;
+use alloc::string::{String, ToString};
+use alloc::vec;
+use alloc::vec::Vec;
+use core::error::Error;
+use core::fmt::{Debug, Display, Formatter, Write};
+use core::{mem, ptr};
 
 /// Scalar types, aka "plain old data"
 pub trait Pod {}
@@ -23,6 +30,30 @@ pub struct AlignedMemory<const ALIGN: usize> {
     mem: Vec<u8>,
     zero_up_to_max_len: bool,
 }
+
+#[derive(Debug)]
+pub struct InvalidInputError {
+    msg: String,
+}
+
+impl InvalidInputError {
+    pub fn new(msg: &str) -> Self {
+        Self {
+            msg: msg.to_string(),
+        }
+    }
+    pub fn msg(&self) -> &String {
+        &self.msg
+    }
+}
+
+impl Display for InvalidInputError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        write!(f, "InvalidInputError: {}", &self.msg)
+    }
+}
+
+impl core::error::Error for InvalidInputError {}
 
 impl<const ALIGN: usize> AlignedMemory<ALIGN> {
     fn get_mem(max_len: usize) -> (Vec<u8>, usize) {
@@ -113,17 +144,16 @@ impl<const ALIGN: usize> AlignedMemory<ALIGN> {
         &mut self.mem[start..end]
     }
     /// Grows memory with `value` repeated `num` times starting at the `write_index`
-    pub fn fill_write(&mut self, num: usize, value: u8) -> std::io::Result<()> {
+    pub fn fill_write(&mut self, num: usize, value: u8) -> Result<(), Box<dyn core::error::Error>> {
         let new_len = match (
             self.mem.len().checked_add(num),
             self.align_offset.checked_add(self.max_len),
         ) {
             (Some(new_len), Some(allocation_end)) if new_len <= allocation_end => new_len,
             _ => {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::InvalidInput,
+                return Err(Box::new(InvalidInputError::new(
                     "aligned memory resize failed",
-                ))
+                )))
             }
         };
         if self.zero_up_to_max_len && value == 0 {
@@ -178,27 +208,83 @@ impl<const ALIGN: usize> Clone for AlignedMemory<ALIGN> {
     }
 }
 
-impl<const ALIGN: usize> std::io::Write for AlignedMemory<ALIGN> {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+pub trait IoWrite: core::fmt::Write {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, Box<dyn core::error::Error>>;
+    fn flush(&mut self) -> Result<(), Box<dyn core::error::Error>>;
+}
+
+/*pub trait IoWriteDefault: Write {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, Box<dyn core::error::Error>> {
+        for &byte in buf {
+            self.write_char(byte as char)
+                .map_err(|_| StringError::new("error while writing char"))?;
+        }
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> Result<(), Box<dyn core::error::Error>> {
+        Ok(())
+    }
+}*/
+
+// impl<T: core::fmt::Write> IoWrite for T {
+//     fn write(&mut self, buf: &[u8]) -> Result<usize, Box<dyn core::error::Error>> {
+//         for &byte in buf {
+//             self.write_char(byte as char)
+//                 .map_err(|_| StringError::new("error while writing char"))?;
+//         }
+//         Ok(buf.len())
+//     }
+//     fn flush(&mut self) -> Result<(), Box<dyn core::error::Error>> {
+//         Ok(())
+//     }
+// }
+
+// impl From<core::fmt::Error> for Box<dyn IoWrite> {
+//     fn from(err: core::fmt::Error) -> Self {
+//         Box::new(FormatError::new(err.to_string()))
+//     }
+// }
+
+impl<const ALIGN: usize> Write for AlignedMemory<ALIGN> {
+    fn write_str(&mut self, s: &str) -> core::fmt::Result {
+        write!(self, "{}", s)?;
+        Ok(())
+    }
+}
+
+// impl<T: core::fmt::Write> IoWrite for T {
+//     fn write(&mut self, buf: &[u8]) -> Result<usize, Box<dyn core::error::Error>> {
+//         for &byte in buf {
+//             self.write_char(byte as char)
+//                 .map_err(|_| StringError::new("write error"))?;
+//         }
+//         Ok(buf.len())
+//     }
+//     fn flush(&mut self) -> Result<(), Box<dyn core::error::Error>> {
+//         Ok(())
+//     }
+// }
+
+/*impl<const ALIGN: usize> IoWrite for AlignedMemory<ALIGN> {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, Box<dyn core::error::Error>> {
         match (
             self.mem.len().checked_add(buf.len()),
             self.align_offset.checked_add(self.max_len),
         ) {
             (Some(new_len), Some(allocation_end)) if new_len <= allocation_end => {}
             _ => {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::InvalidInput,
+                return Err(Box::new(InvalidInputError::new(
                     "aligned memory write failed",
-                ))
+                )))
             }
         }
         self.mem.extend_from_slice(buf);
         Ok(buf.len())
     }
-    fn flush(&mut self) -> std::io::Result<()> {
+    fn flush(&mut self) -> Result<(), Box<dyn core::error::Error>> {
         Ok(())
     }
-}
+}*/
 
 impl<const ALIGN: usize, T: AsRef<[u8]>> From<T> for AlignedMemory<ALIGN> {
     fn from(bytes: T) -> Self {
@@ -216,7 +302,7 @@ pub fn is_memory_aligned(ptr: usize, align: usize) -> bool {
 #[cfg(test)]
 mod tests {
     #![allow(clippy::arithmetic_side_effects)]
-    use {super::*, std::io::Write};
+    // use {super::*, std::io::Write};
 
     fn do_test<const ALIGN: usize>() {
         let mut aligned_memory = AlignedMemory::<ALIGN>::with_capacity(10);

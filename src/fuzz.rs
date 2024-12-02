@@ -1,4 +1,4 @@
-//! This module defines memory regions
+/*//! This module defines memory regions
 
 use rand::Rng;
 use std::ops::Range;
@@ -25,3 +25,4 @@ pub fn fuzz<F>(
         }
     }
 }
+*/

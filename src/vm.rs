@@ -21,19 +21,22 @@ use crate::{
     program::{BuiltinFunction, BuiltinProgram, FunctionRegistry, SBPFVersion},
     static_analysis::{Analysis, TraceLogEntry},
 };
+use alloc::vec::Vec;
+use alloc::{collections::BTreeMap, fmt::Debug, sync::Arc, vec};
 use rand::Rng;
-use std::{collections::BTreeMap, fmt::Debug, sync::Arc};
 
 /// Shift the RUNTIME_ENVIRONMENT_KEY by this many bits to the LSB
 ///
 /// 3 bits for 8 Byte alignment, and 1 bit to have encoding space for the RuntimeEnvironment.
 const PROGRAM_ENVIRONMENT_KEY_SHIFT: u32 = 4;
-static RUNTIME_ENVIRONMENT_KEY: std::sync::OnceLock<i32> = std::sync::OnceLock::<i32>::new();
+static RUNTIME_ENVIRONMENT_KEY: spin::Once<i32> = spin::Once::<i32>::new();
 
 /// Returns (and if not done before generates) the encryption key for the VM pointer
 pub fn get_runtime_environment_key() -> i32 {
-    *RUNTIME_ENVIRONMENT_KEY
-        .get_or_init(|| rand::thread_rng().gen::<i32>() >> PROGRAM_ENVIRONMENT_KEY_SHIFT)
+    // *RUNTIME_ENVIRONMENT_KEY
+    //     .get_or_init(|| rand::thread_rng().gen::<i32>() >> PROGRAM_ENVIRONMENT_KEY_SHIFT)
+    // TODO do we need true rng here?
+    *RUNTIME_ENVIRONMENT_KEY.call_once(|| 111 >> PROGRAM_ENVIRONMENT_KEY_SHIFT)
 }
 
 /// VM configuration settings
@@ -342,7 +345,7 @@ impl<'a, C: ContextObject> EbpfVm<'a, C> {
             memory_mapping = MemoryMapping::new_identity();
         }
         EbpfVm {
-            host_stack_pointer: std::ptr::null_mut(),
+            host_stack_pointer: core::ptr::null_mut(),
             call_depth: 0,
             stack_pointer,
             context_object_pointer: context_object,
@@ -418,7 +421,7 @@ impl<'a, C: ContextObject> EbpfVm<'a, C> {
             0
         };
         let mut result = ProgramResult::Ok(0);
-        std::mem::swap(&mut result, &mut self.program_result);
+        core::mem::swap(&mut result, &mut self.program_result);
         (instruction_count, result)
     }
 

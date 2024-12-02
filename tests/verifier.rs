@@ -20,7 +20,7 @@
 // These are unit tests for the eBPF “verifier”.
 
 extern crate solana_rbpf;
-extern crate thiserror;
+// extern crate thiserror;
 
 use solana_rbpf::{
     assembler::assemble,
@@ -32,12 +32,12 @@ use solana_rbpf::{
 };
 use std::sync::Arc;
 use test_utils::{assert_error, create_vm};
-use thiserror::Error;
+// use thiserror::Error;
 
 /// Error definitions
-#[derive(Debug, Error)]
+#[derive(Debug /*, Error*/)]
 pub enum VerifierTestError {
-    #[error("{0}")]
+    // #[error("{0}")]
     Rejected(String),
 }
 

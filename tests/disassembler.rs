@@ -7,6 +7,7 @@
 // copied, modified, or distributed except according to those terms.
 
 extern crate solana_rbpf;
+use solana_rbpf::wrappers::VecWriter;
 use solana_rbpf::{
     assembler::assemble,
     program::{BuiltinProgram, FunctionRegistry},
@@ -28,9 +29,9 @@ macro_rules! disasm {
         );
         let executable = assemble::<TestContextObject>(src, Arc::new(loader)).unwrap();
         let analysis = Analysis::from_executable(&executable).unwrap();
-        let mut reasm = Vec::new();
+        let mut reasm = VecWriter { buf: Vec::new() };
         analysis.disassemble(&mut reasm).unwrap();
-        assert_eq!(src, String::from_utf8(reasm).unwrap());
+        assert_eq!(src, String::from_utf8(reasm.buf).unwrap());
     }};
 }
 

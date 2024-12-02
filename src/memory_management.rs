@@ -10,6 +10,8 @@ use crate::error::EbpfError;
 
 #[cfg(not(any(target_os = "windows", target_arch = "wasm32")))]
 extern crate libc;
+use alloc::format;
+use alloc::vec;
 #[cfg(not(any(target_os = "windows", target_arch = "wasm32")))]
 use libc::c_void;
 
@@ -99,7 +101,7 @@ pub unsafe fn allocate_pages(size_in_bytes: usize) -> Result<*mut u8, EbpfError>
         not(any(target_os = "windows", target_arch = "wasm32")),
         target_os = "windows"
     ))]
-    let mut raw: *mut c_void = std::ptr::null_mut();
+    let mut raw: *mut c_void = core::ptr::null_mut();
     #[cfg(not(any(target_os = "windows", target_arch = "wasm32")))]
     libc_error_guard!(
         mmap,

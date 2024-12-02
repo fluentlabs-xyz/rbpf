@@ -7,7 +7,11 @@ use crate::{
     program::SBPFVersion,
     vm::Config,
 };
-use std::{
+use alloc::boxed::Box;
+use alloc::string::ToString;
+use alloc::vec::Vec;
+use alloc::{format, vec};
+use core::{
     array,
     cell::{Cell, UnsafeCell},
     fmt, mem,
@@ -69,7 +73,7 @@ pub struct MemoryRegion {
 impl MemoryRegion {
     fn new(slice: &[u8], vm_addr: u64, vm_gap_size: u64, state: MemoryState) -> Self {
         let mut vm_addr_end = vm_addr.saturating_add(slice.len() as u64);
-        let mut vm_gap_shift = (std::mem::size_of::<u64>() as u8)
+        let mut vm_gap_shift = (core::mem::size_of::<u64>() as u8)
             .saturating_mul(8)
             .saturating_sub(1);
         if vm_gap_size > 0 {
@@ -105,7 +109,7 @@ impl MemoryRegion {
     /// Creates a new writable MemoryRegion from a mutable slice
     pub fn new_writable(slice: &mut [u8], vm_addr: u64) -> Self {
         Self::new(
-            unsafe { std::mem::transmute::<&mut [u8], &[u8]>(slice) },
+            unsafe { core::mem::transmute::<&mut [u8], &[u8]>(slice) },
             vm_addr,
             0,
             MemoryState::Writable,
@@ -122,7 +126,7 @@ impl MemoryRegion {
     /// Creates a new writable gapped MemoryRegion from a mutable slice
     pub fn new_writable_gapped(slice: &mut [u8], vm_addr: u64, vm_gap_size: u64) -> Self {
         Self::new(
-            unsafe { std::mem::transmute::<&mut [u8], &[u8]>(slice) },
+            unsafe { core::mem::transmute::<&mut [u8], &[u8]>(slice) },
             vm_addr,
             vm_gap_size,
             MemoryState::Writable,
@@ -169,13 +173,13 @@ impl fmt::Debug for MemoryRegion {
         )
     }
 }
-impl std::cmp::PartialOrd for MemoryRegion {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+impl core::cmp::PartialOrd for MemoryRegion {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         Some(self.cmp(other))
     }
 }
-impl std::cmp::Ord for MemoryRegion {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+impl core::cmp::Ord for MemoryRegion {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         self.vm_addr.cmp(&other.vm_addr)
     }
 }
@@ -970,7 +974,7 @@ impl MappingCache {
 
 #[cfg(test)]
 mod test {
-    use std::{cell::RefCell, rc::Rc};
+    use core::cell::RefCell;
     use test_utils::assert_error;
 
     use super::*;

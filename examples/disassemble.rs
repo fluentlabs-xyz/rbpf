@@ -40,6 +40,6 @@ fn main() {
     )
     .unwrap();
     let analysis = Analysis::from_executable(&executable).unwrap();
-    let stdout = std::io::stdout();
-    analysis.disassemble(&mut stdout.lock()).unwrap();
+    // let stdout = std::io::stdout();
+    // analysis.disassemble(&mut stdout.lock()).unwrap();
 }

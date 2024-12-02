@@ -16,13 +16,15 @@
     html_favicon_url = "https://raw.githubusercontent.com/qmonnet/rbpf/master/misc/rbpf.ico"
 )]
 #![deny(clippy::arithmetic_side_effects)]
+#![no_std]
 
+extern crate alloc;
 extern crate byteorder;
 extern crate combine;
 extern crate hash32;
 extern crate log;
 extern crate rand;
-extern crate thiserror;
+// extern crate thiserror;
 
 pub mod aligned_memory;
 mod asm_parser;
@@ -35,6 +37,7 @@ pub mod elf;
 pub mod elf_parser;
 pub mod elf_parser_glue;
 pub mod error;
+#[cfg(test)]
 pub mod fuzz;
 pub mod insn_builder;
 pub mod interpreter;
@@ -48,6 +51,7 @@ pub mod static_analysis;
 pub mod syscalls;
 pub mod verifier;
 pub mod vm;
+pub mod wrappers;
 #[cfg(all(feature = "jit", not(target_os = "windows"), target_arch = "x86_64"))]
 mod x86;
 

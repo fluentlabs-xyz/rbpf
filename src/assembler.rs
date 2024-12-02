@@ -22,7 +22,11 @@ use crate::{
     program::{BuiltinProgram, FunctionRegistry, SBPFVersion},
     vm::ContextObject,
 };
-use std::{collections::HashMap, sync::Arc};
+use alloc::format;
+use alloc::string::{String, ToString};
+use alloc::sync::Arc;
+use alloc::vec::Vec;
+use hashbrown::HashMap;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum InstructionType {

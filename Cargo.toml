@@ -22,15 +22,17 @@ include = [
 arbitrary = { version = "1.0", optional = true, features = ["derive"] }
 byteorder = { version = "1.2", default-features = false }
 #combine = { git = "https://github.com/fluentlabs-xyz/combine", tag = "3.8.1" }
-combine = { path = "../combine" }
+combine = { path = "../combine", default-features = false, features = ["no-std"] }
 gdbstub = { version = "0.6.2", optional = true }
-goblin = "0.5.1"
+goblin = { version = "0.5.1", default-features = false, features = ["alloc", "elf32", "elf64", "mach32", "mach64", "pe32", "pe64", "archive", "endian_fd"] }
 hash32 = "0.2.0"
 log = "0.4.2"
-rand = { version = "0.8.5", features = ["small_rng"] }
+rand = { version = "0.8.5", default-features = false, features = ["small_rng", "alloc"] }
 rustc-demangle = "0.1"
-scroll = "0.11"
-thiserror = "1.0.26"
+scroll = { version = "0.11", default-features = false }
+#thiserror = "1.0.26"
+spin = "0.9.8"
+hashbrown = "0.15.1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["memoryapi", "sysinfoapi", "winnt", "errhandlingapi"], optional = true }

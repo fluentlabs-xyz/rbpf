@@ -1,5 +1,9 @@
 //! Internal ELF parser abstraction.
-use std::{borrow::Cow, convert::TryInto, iter, ops::Range, slice};
+
+use alloc::borrow::Cow;
+use alloc::format;
+use alloc::string::ToString;
+use core::{convert::TryInto, iter, ops::Range, slice};
 
 use goblin::{
     elf::{Elf, Header, ProgramHeader, Reloc, SectionHeader, Sym},
@@ -224,7 +228,7 @@ impl<'a> ElfParser<'a> for GoblinParser<'a> {
         }) {
             Some(section) => Ok(section.clone()),
             None => Err(ElfError::SectionNotFound(
-                std::str::from_utf8(name)
+                core::str::from_utf8(name)
                     .unwrap_or("UTF-8 error")
                     .to_string(),
             )),
@@ -411,7 +415,7 @@ impl<'a> ElfParser<'a> for NewParser<'a> {
         }
 
         Err(ElfError::SectionNotFound(
-            std::str::from_utf8(name)
+            core::str::from_utf8(name)
                 .unwrap_or("UTF-8 error")
                 .to_string(),
         ))
@@ -550,7 +554,7 @@ impl From<GoblinError> for ElfError {
             GoblinError::Malformed(string) => Self::FailedToParse(format!("malformed: {string}")),
             GoblinError::BadMagic(magic) => Self::FailedToParse(format!("bad magic: {magic:#x}")),
             GoblinError::Scroll(error) => Self::FailedToParse(format!("read-write: {error}")),
-            GoblinError::IO(error) => Self::FailedToParse(format!("io: {error}")),
+            // GoblinError::IO(error) => Self::FailedToParse(format!("io: {error}")),
             GoblinError::BufferTooShort(n, error) => {
                 Self::FailedToParse(format!("buffer too short {n} {error}"))
             }

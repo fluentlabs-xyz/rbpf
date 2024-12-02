@@ -3,9 +3,10 @@
 pub mod consts;
 pub mod types;
 
-use std::{fmt, mem, ops::Range, slice};
-
 use crate::{ArithmeticOverflow, ErrCheckedArithmetic};
+use alloc::string::{String, ToString};
+use core::fmt::{write, Display, Formatter};
+use core::{fmt, mem, ops::Range, slice};
 use {consts::*, types::*};
 
 /// Maximum length of section name allowed.
@@ -13,53 +14,59 @@ pub const SECTION_NAME_LENGTH_MAXIMUM: usize = 16;
 const SYMBOL_NAME_LENGTH_MAXIMUM: usize = 64;
 
 /// Error definitions
-#[derive(Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, PartialEq, Eq /*, thiserror::Error*/)]
 pub enum ElfParserError {
     /// ELF file header is inconsistent or unsupported
-    #[error("invalid file header")]
+    // #[error("invalid file header")]
     InvalidFileHeader,
     /// Program header is inconsistent or unsupported
-    #[error("invalid program header")]
+    // #[error("invalid program header")]
     InvalidProgramHeader,
     /// Section header is inconsistent or unsupported
-    #[error("invalid section header")]
+    // #[error("invalid section header")]
     InvalidSectionHeader,
     /// Section or symbol name is not UTF8 or too long
-    #[error("invalid string")]
+    // #[error("invalid string")]
     InvalidString,
     /// Section or symbol name is too long
-    #[error("Section or symbol name `{0}` is longer than `{1}` bytes")]
+    // #[error("Section or symbol name `{0}` is longer than `{1}` bytes")]
     StringTooLong(String, usize),
     /// An index or memory range does exeed its boundaries
-    #[error("value out of bounds")]
+    // #[error("value out of bounds")]
     OutOfBounds,
     /// The size isn't valid
-    #[error("invalid size")]
+    // #[error("invalid size")]
     InvalidSize,
     /// Headers, tables or sections do overlap in the file
-    #[error("values overlap")]
+    // #[error("values overlap")]
     Overlap,
     /// Sections are not sorted in ascending order
-    #[error("sections not in ascending order")]
+    // #[error("sections not in ascending order")]
     SectionNotInOrder,
     /// No section name string table present in the file
-    #[error("no section name string table found")]
+    // #[error("no section name string table found")]
     NoSectionNameStringTable,
     /// Invalid .dynamic section table
-    #[error("invalid dynamic section table")]
+    // #[error("invalid dynamic section table")]
     InvalidDynamicSectionTable,
     /// Invalid relocation table
-    #[error("invalid relocation table")]
+    // #[error("invalid relocation table")]
     InvalidRelocationTable,
     /// Invalid alignment
-    #[error("invalid alignment")]
+    // #[error("invalid alignment")]
     InvalidAlignment,
     /// No string table
-    #[error("no string table")]
+    // #[error("no string table")]
     NoStringTable,
     /// No dynamic string table
-    #[error("no dynamic string table")]
+    // #[error("no dynamic string table")]
     NoDynamicStringTable,
+}
+
+impl Display for ElfParserError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "ElfParserError: {}", &self.to_string())
+    }
 }
 
 fn check_that_there_is_no_overlap(
@@ -519,7 +526,7 @@ impl<'a> fmt::Debug for Elf64<'a> {
                     SECTION_NAME_LENGTH_MAXIMUM,
                 )
                 .and_then(|name| {
-                    std::str::from_utf8(name).map_err(|_| ElfParserError::InvalidString)
+                    core::str::from_utf8(name).map_err(|_| ElfParserError::InvalidString)
                 })
                 .unwrap();
             writeln!(f, "{section_name}")?;
@@ -537,7 +544,7 @@ impl<'a> fmt::Debug for Elf64<'a> {
                             SYMBOL_NAME_LENGTH_MAXIMUM,
                         )
                         .and_then(|name| {
-                            std::str::from_utf8(name).map_err(|_| ElfParserError::InvalidString)
+                            core::str::from_utf8(name).map_err(|_| ElfParserError::InvalidString)
                         })
                         .unwrap();
                     writeln!(f, "{symbol_name}")?;
