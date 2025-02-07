@@ -384,7 +384,8 @@ impl<C: ContextObject> Executable<C> {
                 aligned = AlignedMemory::<{ HOST_ALIGN }>::from_slice(bytes);
                 aligned.as_slice()
             };
-            Self::load_with_parser(&NewParser::parse(bytes)?, bytes, loader)
+            let parse_result = NewParser::parse(bytes);
+            Self::load_with_parser(&parse_result?, bytes, loader)
         } else {
             Self::load_with_parser(&GoblinParser::parse(bytes)?, bytes, loader)
         }
@@ -1204,6 +1205,7 @@ mod test {
         vm::TestContextObject,
     };
     use rand::{distributions::Uniform, Rng};
+    use std::fs::File;
     // use std::{fs::File, io::Read};
     use test_utils::assert_error;
     type ElfExecutable = Executable<TestContextObject>;

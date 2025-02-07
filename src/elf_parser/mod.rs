@@ -31,7 +31,7 @@ pub enum ElfParserError {
     /// Section or symbol name is too long
     // #[error("Section or symbol name `{0}` is longer than `{1}` bytes")]
     StringTooLong(String, usize),
-    /// An index or memory range does exeed its boundaries
+    /// An index or memory range does exceed its boundaries
     // #[error("value out of bounds")]
     OutOfBounds,
     /// The size isn't valid
@@ -65,7 +65,24 @@ pub enum ElfParserError {
 
 impl Display for ElfParserError {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "ElfParserError: {}", &self.to_string())
+        // write!(f, "ElfParserError: {}", &self.to_string())
+        match self {
+            ElfParserError::InvalidFileHeader => write!(f, "InvalidFileHeader"),
+            ElfParserError::InvalidProgramHeader => write!(f, "InvalidProgramHeader"),
+            ElfParserError::InvalidSectionHeader => write!(f, "InvalidSectionHeader"),
+            ElfParserError::InvalidString => write!(f, "InvalidString"),
+            ElfParserError::StringTooLong(_, _) => write!(f, "StringTooLong"),
+            ElfParserError::OutOfBounds => write!(f, "OutOfBounds"),
+            ElfParserError::InvalidSize => write!(f, "InvalidSize"),
+            ElfParserError::Overlap => write!(f, "Overlap"),
+            ElfParserError::SectionNotInOrder => write!(f, "SectionNotInOrder"),
+            ElfParserError::NoSectionNameStringTable => write!(f, "NoSectionNameStringTable"),
+            ElfParserError::InvalidDynamicSectionTable => write!(f, "InvalidDynamicSectionTable"),
+            ElfParserError::InvalidRelocationTable => write!(f, "InvalidRelocationTable"),
+            ElfParserError::InvalidAlignment => write!(f, "InvalidAlignment"),
+            ElfParserError::NoStringTable => write!(f, "NoStringTable"),
+            ElfParserError::NoDynamicStringTable => write!(f, "NoDynamicStringTable"),
+        }
     }
 }
 

@@ -303,6 +303,9 @@ pub fn is_memory_aligned(ptr: usize, align: usize) -> bool {
 mod tests {
     #![allow(clippy::arithmetic_side_effects)]
     // use {super::*, std::io::Write};
+    use crate::aligned_memory::AlignedMemory;
+    use core::mem;
+    use core::ptr;
 
     fn do_test<const ALIGN: usize>() {
         let mut aligned_memory = AlignedMemory::<ALIGN>::with_capacity(10);

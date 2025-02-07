@@ -390,9 +390,8 @@ impl<'a> ElfParser<'a> for NewParser<'a> {
     >;
 
     fn parse(data: &'a [u8]) -> Result<NewParser<'a>, ElfError> {
-        Ok(Self {
-            elf: Elf64::parse(data)?,
-        })
+        let parse_result = Elf64::parse(data);
+        Ok(Self { elf: parse_result? })
     }
 
     fn header(&self) -> &Elf64Ehdr {

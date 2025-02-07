@@ -974,6 +974,7 @@ impl MappingCache {
 
 #[cfg(test)]
 mod test {
+    use alloc::rc::Rc;
     use core::cell::RefCell;
     use test_utils::assert_error;
 
