@@ -90,6 +90,7 @@ dependencies = [
 [[package]]
 name = "combine"
 version = "3.8.1"
+source = "git+https://github.com/fluentlabs-xyz/combine?branch=feat%2Fsvm-3.8.1#b7400760f97c381a59d55fce59bbf6461e748820"
 dependencies = [
  "ascii",
  "byteorder",
