@@ -364,7 +364,6 @@ dependencies = [
  "log",
  "rand",
  "rustc-demangle",
- "scroll",
  "spin",
  "winapi",
 ]
