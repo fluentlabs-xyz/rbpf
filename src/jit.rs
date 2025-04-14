@@ -15,6 +15,15 @@ use alloc::vec::Vec;
 use core::{fmt::Debug, mem, ptr};
 use rand::{rngs::SmallRng, Rng, SeedableRng};
 
+// #[cfg(not(feature = "shuttle-test"))]
+// use rand::{thread_rng, Rng};
+//
+// #[cfg(feature = "shuttle-test")]
+// use shuttle::rand::{thread_rng, Rng};
+//
+// use rand::{rngs::SmallRng, SeedableRng};
+// use std::{fmt::Debug, mem, ptr};
+
 use crate::{
     ebpf::{self, FIRST_SCRATCH_REG, FRAME_PTR_REG, INSN_SIZE, SCRATCH_REGS, STACK_PTR_REG},
     elf::Executable,
@@ -30,6 +39,7 @@ use crate::{
 const MAX_EMPTY_PROGRAM_MACHINE_CODE_LENGTH: usize = 4096;
 const MAX_MACHINE_CODE_LENGTH_PER_INSTRUCTION: usize = 110;
 const MACHINE_CODE_PER_INSTRUCTION_METER_CHECKPOINT: usize = 13;
+const MAX_START_PADDING_LENGTH: usize = 256;
 
 pub struct JitProgram {
     /// OS page size in bytes and the alignment of the sections
@@ -49,7 +59,7 @@ impl JitProgram {
             let raw = allocate_pages(pc_loc_table_size + over_allocated_code_size)?;
             Ok(Self {
                 page_size,
-                pc_section: core::slice::from_raw_parts_mut(raw as *mut usize, pc),
+                pc_section: core::slice::from_raw_parts_mut(raw.cast::<usize>(), pc),
                 text_section: core::slice::from_raw_parts_mut(
                     raw.add(pc_loc_table_size),
                     over_allocated_code_size,
@@ -82,7 +92,7 @@ impl JitProgram {
             self.text_section =
                 core::slice::from_raw_parts_mut(raw.add(pc_loc_table_size), text_section_usage);
             protect_pages(
-                self.pc_section.as_mut_ptr() as *mut u8,
+                self.pc_section.as_mut_ptr().cast::<u8>(),
                 pc_loc_table_size,
                 false,
             )?;
@@ -121,7 +131,7 @@ impl JitProgram {
                 "pop rbp",
                 "pop rbx",
                 host_stack_pointer = in(reg) &mut vm.host_stack_pointer,
-                inlateout("rdi") (vm as *mut _ as *mut u64).offset(get_runtime_environment_key() as isize) => _,
+                inlateout("rdi") std::ptr::addr_of_mut!(*vm).cast::<u64>().offset(get_runtime_environment_key() as isize) => _,
                 inlateout("rax") (vm.previous_instruction_meter as i64).wrapping_add(registers[11] as i64) => _,
                 inlateout("r10") self.pc_section[registers[11] as usize] => _,
                 inlateout("r11") &registers => _,
@@ -330,9 +340,7 @@ impl<'a, C: ContextObject> JitCompiler<'a, C> {
 
         // Scan through program to find actual number of instructions
         let mut pc = 0;
-        if executable.get_sbpf_version().disable_lddw() {
-            pc = program.len() / ebpf::INSN_SIZE;
-        } else {
+        if executable.get_sbpf_version().enable_lddw() {
             while (pc + 1) * ebpf::INSN_SIZE <= program.len() {
                 let insn = ebpf::get_insn_unchecked(program, pc);
                 pc += match insn.opc {
@@ -340,19 +348,24 @@ impl<'a, C: ContextObject> JitCompiler<'a, C> {
                     _ => 1,
                 };
             }
+        } else {
+            pc = program.len() / ebpf::INSN_SIZE;
         }
 
-        let mut code_length_estimate = MAX_EMPTY_PROGRAM_MACHINE_CODE_LENGTH + MAX_MACHINE_CODE_LENGTH_PER_INSTRUCTION * pc;
+        let mut code_length_estimate = MAX_EMPTY_PROGRAM_MACHINE_CODE_LENGTH + MAX_START_PADDING_LENGTH + MAX_MACHINE_CODE_LENGTH_PER_INSTRUCTION * pc;
         if config.noop_instruction_rate != 0 {
             code_length_estimate += code_length_estimate / config.noop_instruction_rate as usize;
         }
         if config.instruction_meter_checkpoint_distance != 0 {
             code_length_estimate += pc / config.instruction_meter_checkpoint_distance * MACHINE_CODE_PER_INSTRUCTION_METER_CHECKPOINT;
         }
+        // Relative jump destinations limit the maximum output size
+        debug_assert!(code_length_estimate < (i32::MAX as usize));
 
         let runtime_environment_key = get_runtime_environment_key();
         // let mut diversification_rng = SmallRng::from_rng(rand::thread_rng()).map_err(|_| EbpfError::JitNotCompiled)?;
         let mut diversification_rng = SmallRng::seed_from_u64(111);
+        // let mut diversification_rng = SmallRng::from_rng(thread_rng()).map_err(|_| EbpfError::JitNotCompiled)?;
 
         Ok(Self {
             result: JitProgram::new(pc, code_length_estimate)?,
@@ -375,6 +388,14 @@ impl<'a, C: ContextObject> JitCompiler<'a, C> {
     /// Compiles the given executable, consuming the compiler
     pub fn compile(mut self) -> Result<JitProgram, EbpfError> {
         let text_section_base = self.result.text_section.as_ptr();
+
+        // Randomized padding at the start before random intervals begin
+        if self.config.noop_instruction_rate != 0 {
+            for _ in 0..self.diversification_rng.gen_range(0..MAX_START_PADDING_LENGTH) {
+                // X86Instruction::noop().emit(self)?;
+                self.emit::<u8>(0x90);
+            }
+        }
 
         self.emit_subroutines();
 
@@ -406,7 +427,7 @@ impl<'a, C: ContextObject> JitCompiler<'a, C> {
                     self.emit_ins(X86Instruction::alu(OperandSize::S64, 0x81, 0, REGISTER_PTR_TO_VM, insn.imm, Some(stack_ptr_access)));
                 }
 
-                ebpf::LD_DW_IMM  => {
+                ebpf::LD_DW_IMM if self.executable.get_sbpf_version().enable_lddw() => {
                     self.emit_validate_and_profile_instruction_count(true, Some(self.pc + 2));
                     self.pc += 1;
                     self.result.pc_section[self.pc] = self.anchors[ANCHOR_CALL_UNSUPPORTED_INSTRUCTION] as usize;
@@ -576,7 +597,7 @@ impl<'a, C: ContextObject> JitCompiler<'a, C> {
                 ebpf::MOV64_REG  => self.emit_ins(X86Instruction::mov(OperandSize::S64, src, dst)),
                 ebpf::ARSH64_IMM => self.emit_shift(OperandSize::S64, 7, REGISTER_SCRATCH, dst, Some(insn.imm)),
                 ebpf::ARSH64_REG => self.emit_shift(OperandSize::S64, 7, src, dst, None),
-                ebpf::HOR64_IMM => {
+                ebpf::HOR64_IMM if !self.executable.get_sbpf_version().enable_lddw() => {
                     self.emit_sanitized_alu(OperandSize::S64, 0x09, 1, dst, (insn.imm as u64).wrapping_shl(32) as i64);
                 }
 
@@ -657,7 +678,7 @@ impl<'a, C: ContextObject> JitCompiler<'a, C> {
 
                     if internal {
                         if let Some((_function_name, target_pc)) = self.executable.get_function_registry().lookup_by_key(insn.imm as u32) {
-                            self.emit_internal_call(Value::Constant64(target_pc as i64, false));
+                            self.emit_internal_call(Value::Constant64(target_pc as i64, true));
                             resolved = true;
                         }
                     }
@@ -824,13 +845,13 @@ impl<'a, C: ContextObject> JitCompiler<'a, C> {
     #[inline]
     fn emit_sanitized_alu(&mut self, size: OperandSize, opcode: u8, opcode_extension: u8, destination: u8, immediate: i64) {
         if self.should_sanitize_constant(immediate) {
-            self.emit_sanitized_load_immediate(size, REGISTER_SCRATCH, immediate);
-            self.emit_ins(X86Instruction::alu(size, opcode, REGISTER_SCRATCH, destination, 0, None));
+            self.emit_sanitized_load_immediate(size, REGISTER_OTHER_SCRATCH, immediate);
+            self.emit_ins(X86Instruction::alu(size, opcode, REGISTER_OTHER_SCRATCH, destination, 0, None));
         } else if immediate >= i32::MIN as i64 && immediate <= i32::MAX as i64 {
             self.emit_ins(X86Instruction::alu(size, 0x81, opcode_extension, destination, immediate, None));
         } else {
-            self.emit_ins(X86Instruction::load_immediate(size, REGISTER_SCRATCH, immediate));
-            self.emit_ins(X86Instruction::alu(size, opcode, REGISTER_SCRATCH, destination, 0, None));
+            self.emit_ins(X86Instruction::load_immediate(size, REGISTER_OTHER_SCRATCH, immediate));
+            self.emit_ins(X86Instruction::alu(size, opcode, REGISTER_OTHER_SCRATCH, destination, 0, None));
         }
     }
 
@@ -863,7 +884,7 @@ impl<'a, C: ContextObject> JitCompiler<'a, C> {
         // Update `MACHINE_CODE_PER_INSTRUCTION_METER_CHECKPOINT` if you change the code generation here
         if let Some(pc) = pc {
             self.last_instruction_meter_validation_pc = pc;
-            self.emit_ins(X86Instruction::cmp_immediate(OperandSize::S64, REGISTER_INSTRUCTION_METER, pc as i64 + 1, None));
+            self.emit_sanitized_alu(OperandSize::S64, 0x39, RDI, REGISTER_INSTRUCTION_METER, pc as i64 + 1);
         } else {
             self.emit_ins(X86Instruction::cmp(OperandSize::S64, REGISTER_SCRATCH, REGISTER_INSTRUCTION_METER, None));
         }
@@ -874,7 +895,7 @@ impl<'a, C: ContextObject> JitCompiler<'a, C> {
     fn emit_profile_instruction_count(&mut self, target_pc: Option<usize>) {
         match target_pc {
             Some(target_pc) => {
-                self.emit_ins(X86Instruction::alu(OperandSize::S64, 0x81, 0, REGISTER_INSTRUCTION_METER, target_pc as i64 - self.pc as i64 - 1, None)); // instruction_meter += target_pc - (self.pc + 1);
+                self.emit_sanitized_alu(OperandSize::S64, 0x01, 0, REGISTER_INSTRUCTION_METER, target_pc as i64 - self.pc as i64 - 1);
             },
             None => {
                 self.emit_ins(X86Instruction::alu(OperandSize::S64, 0x81, 5, REGISTER_INSTRUCTION_METER, self.pc as i64 + 1, None)); // instruction_meter -= self.pc + 1;
@@ -1026,9 +1047,13 @@ impl<'a, C: ContextObject> JitCompiler<'a, C> {
                 self.emit_ins(X86Instruction::call_reg(REGISTER_OTHER_SCRATCH, None)); // callq *REGISTER_OTHER_SCRATCH
             },
             Value::Constant64(target_pc, user_provided) => {
-                debug_assert!(!user_provided);
+                debug_assert!(user_provided);
                 self.emit_validate_and_profile_instruction_count(false, Some(target_pc as usize));
-                self.emit_ins(X86Instruction::load_immediate(OperandSize::S64, REGISTER_SCRATCH, target_pc));
+                if user_provided && self.should_sanitize_constant(target_pc) {
+                    self.emit_sanitized_load_immediate(OperandSize::S64, REGISTER_SCRATCH, target_pc);
+                } else {
+                    self.emit_ins(X86Instruction::load_immediate(OperandSize::S64, REGISTER_SCRATCH, target_pc));
+                }
                 let jump_offset = self.relative_to_target_pc(target_pc as usize, 5);
                 self.emit_ins(X86Instruction::call_immediate(jump_offset));
             },
@@ -1272,7 +1297,7 @@ impl<'a, C: ContextObject> JitCompiler<'a, C> {
     }
 
     fn emit_set_exception_kind(&mut self, err: EbpfError) {
-        let err_kind = unsafe { *(&err as *const _ as *const u64) };
+        let err_kind = unsafe { *std::ptr::addr_of!(err).cast::<u64>() };
         let err_discriminant = ProgramResult::Err(err).discriminant();
         self.emit_ins(X86Instruction::lea(OperandSize::S64, REGISTER_PTR_TO_VM, REGISTER_OTHER_SCRATCH, Some(X86IndirectAccess::Offset(self.slot_in_vm(RuntimeEnvironmentSlot::ProgramResult)))));
         self.emit_ins(X86Instruction::store_immediate(OperandSize::S64, REGISTER_OTHER_SCRATCH, X86IndirectAccess::Offset(0), err_discriminant as i64)); // result.discriminant = err_discriminant;
@@ -1613,8 +1638,9 @@ mod tests {
             ($env:expr, $entry:ident, $slot:ident) => {
                 assert_eq!(
                     unsafe {
-                        (&$env.$entry as *const _ as *const u64)
-                            .offset_from(&$env as *const _ as *const u64) as usize
+                        std::ptr::addr_of!($env.$entry)
+                            .cast::<u64>()
+                            .offset_from(std::ptr::addr_of!($env).cast::<u64>()) as usize
                     },
                     RuntimeEnvironmentSlot::$slot as usize,
                 );

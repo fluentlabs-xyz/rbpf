@@ -32,7 +32,7 @@ so it should work out of the box by adding it as a dependency in your
 
 ```toml
 [dependencies]
-solana_rbpf = "0.8.3"
+solana_rbpf = "0.8.5"
 ```
 
 You can also use the development version from this GitHub repository. This
@@ -81,9 +81,11 @@ Here are the steps to follow to run an eBPF program with rbpf:
 ## Developer
 
 ### Dependencies
+
 - rustc version 1.72 or higher
 
 ### Build and test instructions
+
 - To build run `cargo build`
 - To test run `cargo test`
 

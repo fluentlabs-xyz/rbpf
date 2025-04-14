@@ -16,6 +16,7 @@
     html_favicon_url = "https://raw.githubusercontent.com/qmonnet/rbpf/master/misc/rbpf.ico"
 )]
 #![deny(clippy::arithmetic_side_effects)]
+#![deny(clippy::ptr_as_ptr)]
 #![no_std]
 
 extern crate alloc;
@@ -35,7 +36,6 @@ pub mod disassembler;
 pub mod ebpf;
 pub mod elf;
 pub mod elf_parser;
-pub mod elf_parser_glue;
 pub mod error;
 #[cfg(test)]
 pub mod fuzz;
@@ -43,7 +43,7 @@ pub mod insn_builder;
 pub mod interpreter;
 #[cfg(all(feature = "jit", not(target_os = "windows"), target_arch = "x86_64"))]
 mod jit;
-#[cfg(feature = "jit")]
+#[cfg(all(feature = "jit", not(target_os = "windows"), target_arch = "x86_64"))]
 mod memory_management;
 pub mod memory_region;
 pub mod program;
@@ -59,6 +59,7 @@ trait ErrCheckedArithmetic: Sized {
     fn err_checked_add(self, other: Self) -> Result<Self, ArithmeticOverflow>;
     fn err_checked_sub(self, other: Self) -> Result<Self, ArithmeticOverflow>;
     fn err_checked_mul(self, other: Self) -> Result<Self, ArithmeticOverflow>;
+    #[allow(dead_code)]
     fn err_checked_div(self, other: Self) -> Result<Self, ArithmeticOverflow>;
 }
 struct ArithmeticOverflow;

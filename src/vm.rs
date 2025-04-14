@@ -25,6 +25,20 @@ use alloc::vec::Vec;
 use alloc::{collections::BTreeMap, fmt::Debug, sync::Arc, vec};
 use rand::Rng;
 
+// use std::{collections::BTreeMap, fmt::Debug};
+//
+// #[cfg(not(feature = "shuttle-test"))]
+// use {
+//     rand::{thread_rng, Rng},
+//     std::sync::Arc,
+// };
+//
+// #[cfg(feature = "shuttle-test")]
+// use shuttle::{
+//     rand::{thread_rng, Rng},
+//     sync::Arc,
+// };
+
 /// Shift the RUNTIME_ENVIRONMENT_KEY by this many bits to the LSB
 ///
 /// 3 bits for 8 Byte alignment, and 1 bit to have encoding space for the RuntimeEnvironment.
@@ -33,9 +47,9 @@ static RUNTIME_ENVIRONMENT_KEY: spin::Once<i32> = spin::Once::<i32>::new();
 
 /// Returns (and if not done before generates) the encryption key for the VM pointer
 pub fn get_runtime_environment_key() -> i32 {
-    // *RUNTIME_ENVIRONMENT_KEY
-    //     .get_or_init(|| rand::thread_rng().gen::<i32>() >> PROGRAM_ENVIRONMENT_KEY_SHIFT)
     // TODO do we need true rng here?
+    // *RUNTIME_ENVIRONMENT_KEY
+    //     .get_or_init(|| thread_rng().gen::<i32>() >> PROGRAM_ENVIRONMENT_KEY_SHIFT)
     *RUNTIME_ENVIRONMENT_KEY.call_once(|| 111 >> PROGRAM_ENVIRONMENT_KEY_SHIFT)
 }
 
@@ -70,8 +84,6 @@ pub struct Config {
     pub reject_callx_r10: bool,
     /// Avoid copying read only sections when possible
     pub optimize_rodata: bool,
-    /// Use the new ELF parser
-    pub new_elf_parser: bool,
     /// Use aligned memory mapping
     pub aligned_memory_mapping: bool,
     /// Allow ExecutableCapability::V1
@@ -90,7 +102,7 @@ impl Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            max_call_depth: 20,
+            max_call_depth: 64,
             stack_frame_size: 4_096,
             enable_address_translation: true,
             enable_stack_frame_gaps: true,
@@ -104,7 +116,6 @@ impl Default for Config {
             external_internal_function_hash_collision: true,
             reject_callx_r10: true,
             optimize_rodata: true,
-            new_elf_parser: true,
             aligned_memory_mapping: true,
             enable_sbpf_v1: true,
             enable_sbpf_v2: true,
@@ -429,8 +440,10 @@ impl<'a, C: ContextObject> EbpfVm<'a, C> {
     pub fn invoke_function(&mut self, function: BuiltinFunction<C>) {
         function(
             unsafe {
-                (self as *mut _ as *mut u64).offset(get_runtime_environment_key() as isize)
-                    as *mut _
+                core::ptr::addr_of_mut!(*self)
+                    .cast::<u64>()
+                    .offset(get_runtime_environment_key() as isize)
+                    .cast::<Self>()
             },
             self.registers[1],
             self.registers[2],

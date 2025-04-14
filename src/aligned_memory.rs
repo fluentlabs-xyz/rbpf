@@ -58,7 +58,6 @@ impl core::error::Error for InvalidInputError {}
 impl<const ALIGN: usize> AlignedMemory<ALIGN> {
     fn get_mem(max_len: usize) -> (Vec<u8>, usize) {
         let mut mem: Vec<u8> = Vec::with_capacity(max_len.saturating_add(ALIGN));
-        mem.push(0);
         let align_offset = mem.as_ptr().align_offset(ALIGN);
         mem.resize(align_offset, 0);
         (mem, align_offset)
@@ -152,8 +151,12 @@ impl<const ALIGN: usize> AlignedMemory<ALIGN> {
             (Some(new_len), Some(allocation_end)) if new_len <= allocation_end => new_len,
             _ => {
                 return Err(Box::new(InvalidInputError::new(
-                    "aligned memory resize failed",
-                )))
+                    "aligned memory fill_write failed",
+                )));
+                // return Err(std::io::Error::new(
+                //     std::io::ErrorKind::InvalidInput,
+                //     "aligned memory fill_write failed",
+                // ))
             }
         };
         if self.zero_up_to_max_len && value == 0 {
@@ -299,6 +302,7 @@ pub fn is_memory_aligned(ptr: usize, align: usize) -> bool {
         .unwrap_or(false)
 }
 
+#[allow(clippy::arithmetic_side_effects)]
 #[cfg(test)]
 mod tests {
     #![allow(clippy::arithmetic_side_effects)]
@@ -306,6 +310,7 @@ mod tests {
     use crate::aligned_memory::AlignedMemory;
     use core::mem;
     use core::ptr;
+    // use {super::*, std::io::Write};
 
     fn do_test<const ALIGN: usize>() {
         let mut aligned_memory = AlignedMemory::<ALIGN>::with_capacity(10);

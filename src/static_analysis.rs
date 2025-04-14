@@ -186,7 +186,9 @@ impl<'a> Analysis<'a> {
         }
         let mut result = Self {
             // Removes the generic ContextObject which is safe because we are not going to execute the program
-            executable: unsafe { core::mem::transmute(executable) },
+            executable: unsafe {
+                core::mem::transmute::<&Executable<C>, &Executable<TestContextObject>>(executable)
+            },
             instructions,
             functions,
             cfg_nodes: BTreeMap::new(),
@@ -208,7 +210,11 @@ impl<'a> Analysis<'a> {
     fn link_cfg_edges(&mut self, cfg_edges: Vec<(usize, Vec<usize>)>, both_directions: bool) {
         for (source, destinations) in cfg_edges {
             if both_directions {
-                self.cfg_nodes.get_mut(&source).unwrap().destinations = destinations.clone();
+                self.cfg_nodes
+                    .get_mut(&source)
+                    .unwrap()
+                    .destinations
+                    .clone_from(&destinations);
             }
             for destination in &destinations {
                 self.cfg_nodes
@@ -356,7 +362,7 @@ impl<'a> Analysis<'a> {
                 }
                 if let Some(next_cfg_edge) = cfg_edge_iter.peek() {
                     if *next_cfg_edge.0 <= cfg_node_end {
-                        cfg_node.destinations = next_cfg_edge.1 .1.clone();
+                        cfg_node.destinations.clone_from(&next_cfg_edge.1 .1);
                         cfg_edge_iter.next();
                         continue;
                     }
@@ -562,8 +568,7 @@ impl<'a> Analysis<'a> {
                         format!("<tr><td align=\"left\">{}</td></tr>", html_escape(&desc))
                     }
                 })
-                .collect::<Vec<String>>()
-                .join("")
+                .collect::<String>()
             )?;
             if let Some(dynamic_analysis) = dynamic_analysis {
                 if let Some(recorded_edges) = dynamic_analysis.edges.get(&cfg_node_start) {

@@ -1,6 +1,6 @@
 [package]
 name = "solana_rbpf"
-version = "0.8.3"
+version = "0.8.5"
 description = "Virtual machine and JIT compiler for eBPF programs"
 authors = ["Solana Maintainers <maintainers@solana.foundation>"]
 repository = "https://github.com/solana-labs/rbpf"
@@ -30,10 +30,11 @@ log = "0.4.2"
 rand = { version = "0.8.5", default-features = false, features = ["small_rng", "alloc"] }
 rustc-demangle = "0.1"
 #combine = { git = "https://github.com/fluentlabs-xyz/combine", tag = "3.8.1" }
-#scroll = { version = "0.11", default-features = false }
 #thiserror = "1.0.26"
 spin = "0.9.8"
 hashbrown = "0.15.1"
+#scroll = { version = "0.11", default-features = false }
+shuttle = { version = "0.7.1", optional = true }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["memoryapi", "sysinfoapi", "winnt", "errhandlingapi"], optional = true }
@@ -46,6 +47,7 @@ default = ["jit"]
 jit = ["libc", "winapi"]
 fuzzer-not-safe-for-production = ["arbitrary"]
 debugger = ["gdbstub"]
+shuttle-test = ["dep:shuttle"]
 
 [dev-dependencies]
 #elf = "0.0.10"
