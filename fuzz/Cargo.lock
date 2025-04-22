@@ -353,7 +353,7 @@ dependencies = [
 
 [[package]]
 name = "solana_rbpf"
-version = "0.8.3"
+version = "0.8.5"
 dependencies = [
  "arbitrary",
  "byteorder",
@@ -371,7 +371,7 @@ dependencies = [
 
 [[package]]
 name = "solana_rbpf-fuzz"
-version = "0.8.3"
+version = "0.8.5"
 dependencies = [
  "arbitrary",
  "libfuzzer-sys",
@@ -403,7 +403,7 @@ dependencies = [
 
 [[package]]
 name = "test_utils"
-version = "0.8.3"
+version = "0.8.5"
 dependencies = [
  "libc",
  "solana_rbpf",
