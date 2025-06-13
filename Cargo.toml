@@ -35,6 +35,7 @@ spin = "0.9.8"
 hashbrown = "0.15.1"
 #scroll = { version = "0.11", default-features = false }
 shuttle = { version = "0.7.1", optional = true }
+#fluentbase-sdk = { path = "../fluentbase/crates/sdk", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
 winapi = { version = "0.3", features = ["memoryapi", "sysinfoapi", "winnt", "errhandlingapi"], optional = true }
@@ -43,7 +44,8 @@ winapi = { version = "0.3", features = ["memoryapi", "sysinfoapi", "winnt", "err
 libc = { version = "0.2", optional = true }
 
 [features]
-default = ["jit"]
+default = ["jit", "std"]
+std = []
 jit = ["libc", "winapi"]
 fuzzer-not-safe-for-production = ["arbitrary"]
 debugger = ["gdbstub"]
